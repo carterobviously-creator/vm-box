@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VM Box</title>
+  <style>
+    :root {
+      --bg:#070b10; --panel:#111821; --panel2:#0b1016; --line:#253244;
+      --text:#d8e3ee; --muted:#7f93a7; --green:#47ffb0; --red:#ff5f56;
+      --yellow:#ffbd2e; --blue:#68a8ff;
+    }
+    * { box-sizing:border-box; }
+    html,body { width:100%; height:100%; margin:0; overflow:hidden; background:
+      radial-gradient(circle at top, #16202b 0%, var(--bg) 55%, #040507 100%);
+      color:var(--text); font-family:Consolas, Monaco, "Courier New", monospace; }
+    .desktop { width:100%; height:100%; display:grid; place-items:center; padding:24px; }
+    .window {
+      width:min(1200px, 98vw); height:min(760px, 94vh);
+      border:1px solid var(--line); border-radius:16px; overflow:hidden;
+      background:linear-gradient(180deg,#15202b,#0b1016); box-shadow:0 18px 60px rgba(0,0,0,.58);
+      display:flex; flex-direction:column; position:relative;
+    }
+    .titlebar {
+      height:48px; display:flex; align-items:center; justify-content:space-between;
+      padding:0 14px; background:linear-gradient(180deg,#243141,#18212d);
+      border-bottom:1px solid rgba(255,255,255,.06); user-select:none; cursor:move;
+    }
+    .title { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; }
+    .dot { width:10px; height:10px; border-radius:50%; background:var(--green); box-shadow:0 0 16px rgba(71,255,176,.6); }
+    .buttons { display:flex; gap:8px; }
+    .btn { width:14px; height:14px; border-radius:50%; }
+    .red{background:var(--red);} .yellow{background:var(--yellow);} .green{background:#27c93f;}
+    .body { flex:1; min-height:0; display:grid; grid-template-columns:320px 1fr; background:#05070a; }
+    .sidebar {
+      padding:16px; border-right:1px solid rgba(255,255,255,.06); background:linear-gradient(180deg,#10161e,#0b1016);
+      overflow:auto;
+    }
+    .panel {
+      border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; margin-bottom:14px;
+      background:rgba(255,255,255,.03);
+    }
+    .panel h3 { margin:0 0 10px; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:#f2f7ff; }
+    .row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px dashed rgba(255,255,255,.08); color:var(--muted); font-size:13px; }
+    .row:last-child { border-bottom:0; }
+    .actions { display:grid; gap:10px; }
+    button {
+      border:0; border-radius:10px; padding:11px 12px; font:inherit; font-weight:700; cursor:pointer;
+    }
+    .primary { background:linear-gradient(180deg,#6cffc1,#31d28c); color:#07120c; }
+    .secondary { background:linear-gradient(180deg,#d8e6f1,#a0b6ca); color:#0f1820; }
+    .screen {
+      min-height:0; display:flex; flex-direction:column; background:#000; position:relative;
+    }
+    .terminal {
+      flex:1; min-height:0; padding:14px; overflow:auto; white-space:pre-wrap; line-height:1.5;
+      color:var(--green); text-shadow:0 0 10px rgba(71,255,176,.15);
+    }
+    .inputline {
+      display:flex; gap:10px; align-items:center; padding:12px 14px; border-top:1px solid rgba(255,255,255,.06);
+      background:#05070a;
+    }
+    .prompt { color:var(--blue); }
+    input {
+      flex:1; background:transparent; border:0; outline:none; color:var(--text); font:inherit;
+    }
+    .overlay {
+      position:absolute; inset:0; display:grid; place-items:center; background:radial-gradient(circle at center, rgba(40,60,80,.18), rgba(0,0,0,.96));
+      color:var(--green); padding:24px;
+    }
+    .overlay pre { margin:0; white-space:pre-wrap; line-height:1.5; font-size:15px; }
+    .footer {
+      height:36px; display:flex; align-items:center; justify-content:space-between; padding:0 14px;
+      color:var(--muted); font-size:12px; background:#0d1218; border-top:1px solid rgba(255,255,255,.06);
+    }
+    .pill { display:inline-flex; gap:8px; align-items:center; }
+    .led { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 10px rgba(71,255,176,.8); }
+    @media (max-width:900px){ .body{grid-template-columns:1fr;} .sidebar{display:none;} }
+  </style>
+</head>
+<body>
+  <div class="desktop">
+    <div class="window" id="window">
+      <div class="titlebar" id="titlebar">
+        <div class="title"><span class="dot"></span>VM BOX // LOCAL CONTAINER</div>
+        <div class="buttons"><div class="btn red"></div><div class="btn yellow"></div><div class="btn green"></div></div>
+      </div>
+
+      <div class="body">
+        <aside class="sidebar">
+          <div class="panel">
+            <h3>System</h3>
+            <div class="row"><span>Status</span><span id="status">Booting</span></div>
+            <div class="row"><span>CPU</span><span id="cpu">12%</span></div>
+            <div class="row"><span>RAM</span><span id="ram">384 MB</span></div>
+            <div class="row"><span>Disk</span><span id="disk">2.4 GB</span></div>
+          </div>
+          <div class="panel">
+            <h3>Controls</h3>
+            <div class="actions">
+              <button class="primary" id="bootBtn">Boot VM</button>
+              <button class="secondary" id="wipeBtn">Wipe Session</button>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>Notes</h3>
+            <div style="color:var(--muted);font-size:13px;line-height:1.5;">
+              This is a self-contained browser VM shell. It avoids iframe/security issues and works from a normal local server.
+            </div>
+          </div>
+        </aside>
+
+        <section class="screen">
+          <div class="overlay" id="overlay">
+            <pre id="bootText">Initializing virtual machine...
+Loading kernel............... OK
+Mounting filesystem.......... OK
+Starting services............ OK
+Launching terminal........... OK
+
+Ready.</pre>
+          </div>
+          <div class="terminal" id="terminal"></div>
+          <div class="inputline">
+            <span class="prompt">vm&gt;</span>
+            <input id="cmd" autocomplete="off" spellcheck="false" placeholder="type help" />
+          </div>
+        </section>
+      </div>
+
+      <div class="footer">
+        <span class="pill"><span class="led"></span> local vm ui</span>
+        <span id="clock"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const term = document.getElementById('terminal');
+    const cmd = document.getElementById('cmd');
+    const overlay = document.getElementById('overlay');
+    const statusEl = document.getElementById('status');
+    const clock = document.getElementById('clock');
+    const cpu = document.getElementById('cpu');
+    const ram = document.getElementById('ram');
+
+    let booted = false;
+    const fs = {
+      "/readme.txt": "Welcome to VM Box.\nThis is a fake shell UI that runs entirely in HTML.",
+      "/about.txt": "No external VM assets required.",
+    };
+
+    function write(line="") {
+      term.textContent += line + "\n";
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function boot() {
+      overlay.style.display = "none";
+      statusEl.textContent = "Running";
+      booted = true;
+      write("VM Box booted.");
+      write("Type 'help' to see commands.");
+      cmd.focus();
+    }
+
+    function wipe() {
+      term.textContent = "";
+      overlay.style.display = "grid";
+      statusEl.textContent = "Booting";
+      booted = false;
+    }
+
+    function handle(input) {
+      const s = input.trim();
+      if (!s) return;
+
+      write("> " + s);
+      const [c, ...args] = s.split(" ");
+
+      if (c === "help") {
+        write("Commands: help, clear, echo, ls, cat, date, boot, about");
+      } else if (c === "clear") {
+        term.textContent = "";
+      } else if (c === "echo") {
+        write(args.join(" "));
+      } else if (c === "ls") {
+        write(Object.keys(fs).join("  "));
+      } else if (c === "cat") {
+        const p = args[0];
+        write(fs[p] ?? "file not found");
+      } else if (c === "date") {
+        write(new Date().toString());
+      } else if (c === "boot") {
+        boot();
+      } else if (c === "about") {
+        write("VM Box is a local HTML shell.");
+      } else {
+        write("command not found: " + c);
+      }
+    }
+
+    document.getElementById("bootBtn").onclick = boot;
+    document.getElementById("wipeBtn").onclick = wipe;
+    cmd.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        handle(cmd.value);
+        cmd.value = "";
+      }
+    });
+
+    setInterval(() => {
+      clock.textContent = new Date().toLocaleTimeString();
+      cpu.textContent = Math.floor(10 + Math.random() * 20) + "%";
+      ram.textContent = Math.floor(320 + Math.random() * 120) + " MB";
+    }, 1000);
+
+    let dragging = false, sx = 0, sy = 0, sl = 0, st = 0;
+    const win = document.getElementById("window");
+    const tb = document.getElementById("titlebar");
+    tb.addEventListener("mousedown", e => {
+      dragging = true;
+      const r = win.getBoundingClientRect();
+      sx = e.clientX; sy = e.clientY; sl = r.left; st = r.top;
+      win.style.position = "absolute"; win.style.left = sl + "px"; win.style.top = st + "px"; win.style.margin = 0;
+    });
+    window.addEventListener("mousemove", e => {
+      if (!dragging) return;
+      win.style.left = (sl + e.clientX - sx) + "px";
+      win.style.top = (st + e.clientY - sy) + "px";
+    });
+    window.addEventListener("mouseup", () => dragging = false);
+
+    write("Ready. Click Boot VM or type boot.");
+  </script>
+</body>
+</html>
